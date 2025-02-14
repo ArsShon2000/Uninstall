@@ -1,0 +1,63 @@
+# Сборочные каталоги
+build*/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*.la
+*.lo
+
+# Каталоги для временных и промежуточных файлов
+*.moc
+*.qrc
+*.qrc.depends
+*.qmltypes
+*.qmlc
+*.rcc
+*.qrc.cpp
+*.prl
+*.app
+*.dSYM/
+*.o.d
+
+# Логи и дампы
+*.log
+*.dump
+
+# Настройки Qt Creator
+*.autosave
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.creator.user
+*.creator.user.*
+*.qmlproject.user
+*.qtc_clangd/
+*.qtc_reduced_index/
+*.pro
+
+# Файлы CMake (если используется CMake)
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+#Файлы bat
+msvc_make.bat
+
+# Файлы qmake
+*.moc
+*.qmake.stash
+*.qmake.cache
+
+# Конфигурации IDE
+.vscode/
+.idea/
+
+# Каталоги и файлы, связанные с операционными системами
+.DS_Store
+Thumbs.db
