@@ -10,45 +10,34 @@ UnInstall::UnInstall(QWidget *parent)
     , ui(new Ui::UnInstall)
 {
     ui->setupUi(this);
-    // ui->stackedWidget->setCurrentIndex(0);
-
-    ui->checkBoxIts->hide();
     ui->stackedWidget->setCurrentIndex(0);
+    ui->checkBoxIts->hide();
 
+    // Устанавливаем стиль кнопки
     QString style = R"(
-QPushButton:hover{
-    background-color: rgba(1, 87, 253, 220);
-}
-QPushButton{
-    background-color: rgb(1, 87, 253);
-    border-radius: 4px;
-    color: white;
-    font: 16px;
-}
-)";
+        QPushButton {
+            background-color: rgb(1, 87, 253);
+            border-radius: 4px;
+            color: white;
+            font: 16px;
+        }
+        QPushButton:hover {
+            background-color: rgba(1, 87, 253, 220);
+        }
+    )";
     ui->pushButton->setStyleSheet(style);
     ui->pushButton->setEnabled(true);
 
+    // Чтение пути из реестра
+    subkeyPath = readRegistryValue("SOFTWARE\\ITSolutions\\SCUD", "ITSPath");
+    qDebug() << (subkeyPath.isEmpty() ? "Не удалось прочитать значение ITSPath."
+                                      : "Значение ITSPath: " + subkeyPath);
 
-        subkeyPath = readRegistryValue("SOFTWARE\\ITSolutions\\SCUD", "ITSPath");
-
-        if (!subkeyPath.isEmpty()) {
-            qDebug() << "Значение ITSPath:" << subkeyPath;
-        } else {
-            qDebug() << "Не удалось прочитать значение ITSPath.";
-        }
-
-        QDir directory(subkeyPath + "\\ITS");
-        if (directory.exists()) ui->checkBoxIts->show();
-
-
-        // Проверяем наличие значений ClientPath, ITSPath, ServerPath
-        // if (checkRegistryValue(hKey, "ClientPath")) ui->checkBoxClient->show();
-        // if (checkRegistryValue(hKey, "ITSPath")) ui->checkBoxIts->show();
-        // if (checkRegistryValue(hKey, "ServerPath")) ui->checkBoxServer->show();
-
-        // Закрываем ключ реестра
-
+    // Проверка существования директории ITS
+    QDir directory(subkeyPath + "\\ITS");
+    if (directory.exists()) {
+        ui->checkBoxIts->show();
+    }
 }
 
 UnInstall::~UnInstall()
@@ -63,151 +52,38 @@ void UnInstall::on_pushButton_clicked()
     ui->stackedWidget->setCurrentIndex(1);
 
     QStringList services = {
-        "ITS_client_launch_keeper",
-        "ITS_server_launch_keeper",
-        "ITS_server",
-        "ITS_server_updater",
-        "ITS_client_updater",
-        "ITS_license_activator",
+        "ITS_client_launch_keeper", "ITS_server_launch_keeper", "ITS_server",
+        "ITS_server_updater", "ITS_client_updater", "ITS_license_activator",
         "ITS_license_service"
     };
 
-    QStringList programms = {
-        "AvtoSCUDGuardantChecker.exe",
-        "AvtoScudService.exe",
-        "AvtoSCUD.exe",
-        "tracker.exe",
-        "InterfaceConfigEditer.exe",
-        "MasterActivation.exe",
+    QStringList programs = {
+        "AvtoSCUDGuardantChecker.exe", "AvtoScudService.exe", "AvtoSCUD.exe",
+        "tracker.exe", "InterfaceConfigEditer.exe", "MasterActivation.exe",
         "AvtoSCUDConfigEditer.exe"
     };
 
-    // Остановка и удаление служб
-    QString service = "eventlog";       // ЖУРНАЛ СОБЫТИЙ
-    QProcess stopProcess;
-    stopProcess.start("sc", QStringList() << "stop" << service);
-    if (stopProcess.waitForFinished())
-    {
-        QString stopOutput = stopProcess.readAllStandardOutput();
-        qDebug() << "Остановка службы" << service << ":" << stopOutput;
-    }
-    stopAndDeleteServices(services);            // Закрытие служб
-
-    foreach (const QString &program, programms)  // Закрытие программ
-    {
+    stopAndDeleteServices(services);
+    for (const QString &program : programs) {
         killProcessByName(program);
-        QThread::msleep(100); // Задержка 100 мс
+        QThread::msleep(100);
     }
 
-    QString currentExecutablePath = QCoreApplication::applicationFilePath();
-    QString currentDirPath = QFileInfo(currentExecutablePath).absolutePath();
-    // if (removeDirectory(currentDirPath)) {
-    //     qDebug() << "Папка" << currentDirPath << "успешно удалена.";
-    // } else {
-    //     qDebug() << "Не удалось удалить папку" << currentDirPath;
-    // }
-
-
-    if (ui->checkBoxIts->isChecked())
-    {
-        excludedDirs << "ITS"; // исключение
+    if (ui->checkBoxIts->isChecked()) {
+        excludedDirs << "ITS";
     }
+
     deleteDesktopShortcut();
     deleter->deleteFilesWithProgress(subkeyPath, excludedDirs);
-    QTimer::singleShot(500, this, [&]() mutable {
 
-        QString uninstallPath = QCoreApplication::applicationDirPath();  // "Client"
-        QDir clientDir(uninstallPath);
-        QDir parentDir = clientDir;
-        parentDir.cdUp();
-
-        // QFile eFile("path.txt");
-        // if (!eFile.exists()
-        //         ? eFile.open(QIODevice::WriteOnly | QIODevice::Text)
-        //         : eFile.open(QIODevice::Append | QIODevice::Text)) {
-        //     QTextStream out(&eFile);
-
-        //     out << QDateTime::currentDateTime().toString("dd-MM-yyyy hh:mm") << "\t: " << uninstallPath << clientDir.absolutePath() << parentDir.path() << Qt::endl;
-
-        //     eFile.close();
-        // }
-
-        // QString pathToDelete = subkeyPath;
-        // if (removeDirectory(QDir::cleanPath(pathToDelete), excludedDirs)) {
-        // } else {
-        //     qDebug() << "Не удалось удалить папку" << pathToDelete;
-
-
-        // }
-
-        if (!isClearRegisterValue())
-        {
-            HKEY hKey;
-            LONG result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\ITSolutions\\SCUD"), 0, KEY_ALL_ACCESS, &hKey);
-
-            if (result == ERROR_SUCCESS) {
-                // Удаляем значение ClientPath
-                result = RegDeleteValue(hKey, TEXT("ITSPath"));
-                if (result == ERROR_SUCCESS) {
-                    qDebug() << "Значение ITSPath успешно удалено.\n";
-                } else {
-                    qDebug() << "Не удалось удалить значение ITSPath. Ошибка: " << result << "\n";
-                }
-
-                // Закрываем ключ реестра
-                RegCloseKey(hKey);
-            } else {
-                qDebug() << "Не удалось открыть ключ SCUD. Ошибка: " << result << "\n";
-            }
+    QTimer::singleShot(500, this, [this]() {
+        if (!isClearRegisterValue()) {
+            reecterClear();
         }
-
         ui->stackedWidget->setCurrentIndex(2);
-
     });
-
-
-    // if (ui->checkBoxServer->isChecked() && ui->checkBoxIts->isChecked() && ui->checkBoxClient->isChecked()) reecterClear();
-
 }
 
-
-bool UnInstall::removeDirectory(const QString &dirPath, const QStringList &excludedDirs) {
-    QDir dir(dirPath);
-    if (!dir.exists()) {
-        return false; // Папка не существует
-    }
-
-    // Удаление файлов в текущей папке
-    foreach (const QString &file, dir.entryList(QDir::Files)) {
-        if (!dir.remove(file)) {
-            qDebug() << "Не удалось удалить файл:" << dir.absoluteFilePath(file);
-        }
-    }
-
-    // Удаление подпапок, если они не входят в список исключений
-    foreach (const QString &subDir, dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        QString absoluteSubDirPath = dir.absoluteFilePath(subDir);
-        if (!excludedDirs.contains(subDir)) {
-            if (!removeDirectory(absoluteSubDirPath, excludedDirs)) {
-                qDebug() << "Не удалось удалить папку:" << absoluteSubDirPath;
-            }
-        }
-    }
-
-    // Удаление самой папки, если она не в списке исключений
-    QString folderName = QFileInfo(dirPath).fileName();
-    if (excludedDirs.contains(folderName)) {
-        qDebug() << "Папка" << folderName << "в списке исключений и не будет удалена.";
-        return true; // Папка остается, так как она исключена
-    }
-
-    // Удаляем саму папку
-    bool result = dir.rmdir(dirPath);
-    if (!result) {
-        qDebug() << "Не удалось удалить папку:" << dirPath;
-    }
-    return result;
-}
 
 QString UnInstall::readRegistryValue(const QString &keyPath, const QString &valueName) {
     HKEY hKey;
@@ -235,91 +111,32 @@ QString UnInstall::readRegistryValue(const QString &keyPath, const QString &valu
 }
 
 void UnInstall::stopAndDeleteServices(const QStringList &services) {
-    foreach (const QString &service, services) {
-        // Остановка службы
-        QProcess stopProcess;
-        stopProcess.start("sc", QStringList() << "stop" << service);
-        if (stopProcess.waitForFinished()) {
-            QString stopOutput = stopProcess.readAllStandardOutput();
-            qDebug() << "Остановка службы" << service << ":" << stopOutput;
-        } else {
-            qDebug() << "Не удалось остановить службу" << service;
-            QFile eFile("path.txt");
-            if (!eFile.exists()
-                    ? eFile.open(QIODevice::WriteOnly | QIODevice::Text)
-                    : eFile.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&eFile);
-
-                out << QDateTime::currentDateTime().toString("dd-MM-yyyy hh:mm") << "\t: " << "Не удалось остановить службу" << Qt::endl;
-
-                eFile.close();
+    for (const QString &service : services) {
+        // Лямбда-функция с явным указанием возвращаемого типа
+        auto executeCommand = [](const QString &command, const QStringList &args) -> QString {
+            QProcess process;
+            process.start(command, args);
+            if (process.waitForFinished()) {
+                return process.readAllStandardOutput();
             }
-        }
+            return "Ошибка выполнения команды.";
+        };
 
-        // Удаление службы
-        QProcess deleteProcess;
-        deleteProcess.start("sc", QStringList() << "delete" << service);
-        if (deleteProcess.waitForFinished()) {
-            QString deleteOutput = deleteProcess.readAllStandardOutput();
-            qDebug() << "Удаление службы" << service << ":" << deleteOutput;
-        } else {
-            qDebug() << "Не удалось удалить службу" << service;
-            QFile eFile("path.txt");
-            if (!eFile.exists()
-                    ? eFile.open(QIODevice::WriteOnly | QIODevice::Text)
-                    : eFile.open(QIODevice::Append | QIODevice::Text)) {
-                QTextStream out(&eFile);
+        QString stopOutput = executeCommand("sc", {"stop", service});
+        qDebug() << "Остановка службы" << service << ":" << stopOutput;
 
-                out << QDateTime::currentDateTime().toString("dd-MM-yyyy hh:mm") << "\t: " << "Не удалось удалить службу" << Qt::endl;
+        QString deleteOutput = executeCommand("sc", {"delete", service});
+        qDebug() << "Удаление службы" << service << ":" << deleteOutput;
 
-                eFile.close();
-            }
+        if (stopOutput.contains("FAILED") || deleteOutput.contains("FAILED")) {
+            QFile file("error.log");
+            file.open(file.exists() ? QIODevice::Append : QIODevice::WriteOnly);
+            QTextStream out(&file);
+            out << QDateTime::currentDateTime().toString("dd-MM-yyyy hh:mm")
+                << ": Ошибка с службой " << service << "\n";
+            file.close();
         }
     }
-}
-
-void UnInstall::scheduleSelfDeletion(QString higherLevelDir) {
-#ifdef Q_OS_WIN
-    // Преобразуем слэши для Windows в стандартные обратные слэши
-    higherLevelDir = QDir::toNativeSeparators(higherLevelDir);  // Преобразуем путь в формат с обратными слэшами
-    QString appFilePath = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());  // Путь к самому приложению
-
-    // Отладочные сообщения для проверки путей
-    qDebug() << "higherLevelDir (после преобразования):" << higherLevelDir;
-    qDebug() << "appFilePath (после преобразования):" << appFilePath;
-
-    QString batchScript = QString(
-                              "@echo off\n"
-                              "echo Удаление файлов...\n"  // Отладочное сообщение
-                              "ping 127.0.0.1 -n 5 > nul\n"  // Небольшая задержка
-                              "del /F /Q \"%1\"\n"  // Удаление самого uninstall.exe
-                              "if exist \"%1\" echo Не удалось удалить %1\n"  // Проверка, удалось ли удалить
-                              "rmdir /S /Q \"%2\"\n"  // Удаление директории после удаления всех файлов
-                              "if exist \"%2\" echo Не удалось удалить %2\n"
-                              ).arg(appFilePath, higherLevelDir);  // Используем корректные пути
-
-    QString batchFilePath = QDir::temp().filePath("uninstall.bat");
-
-    // Отладка: проверка пути к batch-файлу
-    qDebug() << "Batch file path:" << batchFilePath;
-
-    QFile batchFile(batchFilePath);
-    if (batchFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        qDebug() << "batchFile.open успешен";
-        batchFile.write(batchScript.toUtf8());
-        batchFile.close();
-
-        // Запуск batch-файла для удаления
-        if (!QProcess::startDetached("cmd.exe", {"/C", batchFilePath})) {
-            qDebug() << "Ошибка: Не удалось запустить batch-файл.";
-        }
-    } else {
-        qDebug() << "Ошибка: Не удалось создать batch-файл для удаления.";
-    }
-
-#else
-    qDebug() << "Функция удаления для данной ОС не реализована.";
-#endif
 }
 
 bool UnInstall::killProcessByName(const QString &processName) {
@@ -357,56 +174,16 @@ bool UnInstall::killProcessByName(const QString &processName) {
 void UnInstall::reecterClear()
 {
     HKEY hKey;
-    LONG result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE"), 0, KEY_ALL_ACCESS, &hKey);
-
+    LONG result = RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\ITSolutions\\SCUD"),
+                               0, KEY_ALL_ACCESS, &hKey);
     if (result == ERROR_SUCCESS) {
-        // Удаляем ключ ITSolutions
-        result = RegDeleteKey(hKey, TEXT("ITSolutions"));
-        if (result == ERROR_SUCCESS) {
-            qDebug() << "Ключ ITSolutions успешно удален.\n";
-        } else {
-            qDebug() << "Не удалось удалить ключ ITSolutions. Ошибка: " << result << "\n";
-        }
-
+        result = RegDeleteValue(hKey, TEXT("ITSPath"));
+        qDebug() << (result == ERROR_SUCCESS ? "Значение ITSPath успешно удалено."
+                                             : "Не удалось удалить значение ITSPath. Ошибка: " + QString::number(result));
+        RegCloseKey(hKey);
     } else {
-        qDebug() << "Не удалось открыть ключ SOFTWARE. Ошибка: " << result << "\n";
+        qDebug() << "Не удалось открыть ключ SCUD. Ошибка: " << result;
     }
-}
-
-bool UnInstall::checkers()
-{
-    bool isChecked = ( ui->checkBoxIts->isChecked() );
-    if (isChecked)
-    {
-        QString style = R"(
-QPushButton:hover{
-    background-color: rgba(1, 87, 253, 220);
-}
-QPushButton{
-    background-color: rgb(1, 87, 253);
-    border-radius: 4px;
-    color: white;
-    font: 16px;
-}
-)";
-        ui->pushButton->setStyleSheet(style);
-    }
-    else
-    {
-        QString style = R"(
-QPushButton:hover{
-    background-color: rgba(152, 155, 163, 220);
-}
-QPushButton{
-    background-color: rgb(152, 155, 163);
-    border-radius: 4px;
-    color: white;
-    font: 16px;
-}
-)";
-        ui->pushButton->setStyleSheet(style);
-    }
-    return isChecked;
 }
 
 bool UnInstall::isClearRegisterValue()
@@ -415,32 +192,6 @@ bool UnInstall::isClearRegisterValue()
     QDir directory(subkeyPath + "\\ITS");
     if (directory.exists()) isEmpty = true;
     return isEmpty;
-}
-
-
-void UnInstall::on_checkBoxIts_stateChanged(int arg1)
-{
-
-}
-
-bool UnInstall::checkRegistryValue(HKEY hKey, const char* valueName) {
-    // Преобразуем имя значения в формат TCHAR (для работы с WinAPI)
-    TCHAR valueNameT[MAX_PATH];
-    MultiByteToWideChar(CP_ACP, 0, valueName, -1, valueNameT, MAX_PATH);
-
-    // Проверяем наличие значения с помощью RegQueryValueEx
-    LONG result = RegQueryValueEx(hKey, valueNameT, NULL, NULL, NULL, NULL);
-
-    if (result == ERROR_SUCCESS) {
-        qDebug() << "Значение " << valueName << " существует в реестре.\n";
-        return true;
-    } else if (result == ERROR_FILE_NOT_FOUND) {
-        qDebug() << "Значение " << valueName << " не найдено в реестре.\n";
-    } else {
-        qDebug() << "Ошибка при проверке значения " << valueName << ". Код ошибки: " << result << "\n";
-    }
-
-    return false;
 }
 
 void UnInstall::on_pushButton_2_clicked()
